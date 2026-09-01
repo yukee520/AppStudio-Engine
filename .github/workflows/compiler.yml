@@ -26,57 +26,53 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Build Custom App
+      - name: Build App Project
         env:
-          USER_SCRIPT: ${{ github.event.client_payload.script }}
-          APP_NAME: ${{ github.event.client_payload.app_name || 'GeneratedApp' }}
-          APP_ID: ${{ github.event.client_payload.app_id || 'com.appstudio.generated' }}
+          APP_NAME: ${{ github.event.client_payload.app_name || 'My App' }}
+          APP_ID: ${{ github.event.client_payload.app_id || 'com.appstudio.customapp' }}
+          USER_HTML: ${{ github.event.client_payload.html }}
+          USER_JS: ${{ github.event.client_payload.js }}
+          USER_CSS: ${{ github.event.client_payload.css }}
         run: |
-          # 1. Create project with dynamic ID and dynamic Name
-          cordova create custom_build "$APP_ID" "$APP_NAME"
-          cd custom_build
+          # 1. Initialize fresh preset template with dynamic metadata
+          cordova create custom_project "$APP_ID" "$APP_NAME"
+          cd custom_project
           cordova platform add android
 
-          # 2. Inject React UMD runtime and raw User Script
+          # 2. Populate project file directory (www/ folder) via Node.js
           node -e '
             const fs = require("fs");
-            const script = process.env.USER_SCRIPT || "";
-            const appName = process.env.APP_NAME || "Custom App";
-            const htmlContent = `<!DOCTYPE html>
+            
+            const html = process.env.USER_HTML || "<h1>Default App Studio Screen</h1>";
+            const js = process.env.USER_JS || "console.log(\"App initialized\");";
+            const css = process.env.USER_CSS || "body { font-family: sans-serif; padding: 20px; }";
+            const appName = process.env.APP_NAME || "My App";
+
+            // Full index.html embedding user CSS and JS imports
+            const fullHtml = `<!DOCTYPE html>
           <html>
           <head>
+            <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <title>${appName}</title>
+            <link rel="stylesheet" href="style.css">
             <script src="cordova.js"></script>
-            <!-- Load React & Babel for dynamic JS/JSX rendering -->
-            <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-            <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-            <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-            <style>
-              body { margin: 0; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-              #root { width: 100%; height: 100vh; }
-            </style>
           </head>
           <body>
-            <div id="root"></div>
-            <script type="text/babel">
-              document.addEventListener("deviceready", function() {
-                try {
-                  ${script}
-                } catch(err) {
-                  document.getElementById("root").innerHTML = "<pre style=\"color:red;\">" + err.toString() + "</pre>";
-                }
-              }, false);
-            </script>
+            ${html}
+            <script src="app.js"></script>
           </body>
           </html>`;
-            fs.writeFileSync("www/index.html", htmlContent);
+
+            fs.writeFileSync("www/index.html", fullHtml);
+            fs.writeFileSync("www/app.js", js);
+            fs.writeFileSync("www/style.css", css);
           '
 
-          # 3. Build Android Debug APK
+          # 3. Compile project to Android Debug APK
           cordova build android --debug
 
-      - name: Upload Custom App APK Artifact
+      - name: Upload Compiled APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: CustomApp-Release
