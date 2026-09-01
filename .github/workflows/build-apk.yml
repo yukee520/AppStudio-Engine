@@ -25,16 +25,20 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Inject Custom App Script & Config
+      - name: Build Custom App
+        env:
+          USER_SCRIPT: ${{ github.event.client_payload.script }}
         run: |
-          # Create a fresh app build output folder
+          # 1. Create temporary Cordova project
           cordova create custom_build com.user.customapp "CustomApp"
           cd custom_build
           cordova platform add android
           
-          # Inject user submitted script into www/index.html
-          cat << 'HTMLEOF' > www/index.html
-          <!DOCTYPE html>
+          # 2. Safely write user script via Node.js to avoid shell escapes
+          node -e '
+            const fs = require("fs");
+            const script = process.env.USER_SCRIPT || "";
+            const htmlContent = `<!DOCTYPE html>
           <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -43,13 +47,14 @@ jobs:
           </head>
           <body>
             <script>
-            ${{ github.event.client_payload.script }}
+            ${script}
             </script>
           </body>
-          </html>
-          HTMLEOF
+          </html>`;
+            fs.writeFileSync("www/index.html", htmlContent);
+          '
 
-          # Compile the standalone custom APK
+          # 3. Build Android Debug APK
           cordova build android --debug
 
       - name: Upload Custom App APK Artifact
