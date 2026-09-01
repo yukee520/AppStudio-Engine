@@ -29,31 +29,44 @@ jobs:
       - name: Build Custom App
         env:
           USER_SCRIPT: ${{ github.event.client_payload.script }}
-          APP_NAME: ${{ github.event.client_payload.app_name || 'My Custom App' }}
-          APP_ID: ${{ github.event.client_payload.app_id || 'com.custom.app' }}
+          APP_NAME: ${{ github.event.client_payload.app_name || 'GeneratedApp' }}
+          APP_ID: ${{ github.event.client_payload.app_id || 'com.appstudio.generated' }}
         run: |
-          # 1. Create project with dynamic ID and Name
+          # 1. Create project with dynamic ID and dynamic Name
           cordova create custom_build "$APP_ID" "$APP_NAME"
           cd custom_build
           cordova platform add android
 
-          # 2. Safely inject user script into index.html
+          # 2. Inject React UMD runtime and raw User Script
           node -e '
             const fs = require("fs");
             const script = process.env.USER_SCRIPT || "";
-            const appName = process.env.APP_NAME || "App";
+            const appName = process.env.APP_NAME || "Custom App";
             const htmlContent = `<!DOCTYPE html>
           <html>
           <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <title>${appName}</title>
             <script src="cordova.js"></script>
+            <!-- Load React & Babel for dynamic JS/JSX rendering -->
+            <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+            <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+            <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+            <style>
+              body { margin: 0; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              #root { width: 100%; height: 100vh; }
+            </style>
           </head>
-          <body style="margin:0; padding:16px; font-family:sans-serif;">
-            <script>
-            document.addEventListener("deviceready", function() {
-              ${script}
-            }, false);
+          <body>
+            <div id="root"></div>
+            <script type="text/babel">
+              document.addEventListener("deviceready", function() {
+                try {
+                  ${script}
+                } catch(err) {
+                  document.getElementById("root").innerHTML = "<pre style=\"color:red;\">" + err.toString() + "</pre>";
+                }
+              }, false);
             </script>
           </body>
           </html>`;
