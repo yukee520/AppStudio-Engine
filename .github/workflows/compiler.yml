@@ -29,26 +29,31 @@ jobs:
       - name: Build Custom App
         env:
           USER_SCRIPT: ${{ github.event.client_payload.script }}
+          APP_NAME: ${{ github.event.client_payload.app_name || 'My Custom App' }}
+          APP_ID: ${{ github.event.client_payload.app_id || 'com.custom.app' }}
         run: |
-          # 1. Create temporary Cordova project
-          cordova create custom_build com.user.customapp "CustomApp"
+          # 1. Create project with dynamic ID and Name
+          cordova create custom_build "$APP_ID" "$APP_NAME"
           cd custom_build
           cordova platform add android
-          
-          # 2. Safely write user script via Node.js to avoid shell escapes
+
+          # 2. Safely inject user script into index.html
           node -e '
             const fs = require("fs");
             const script = process.env.USER_SCRIPT || "";
+            const appName = process.env.APP_NAME || "App";
             const htmlContent = `<!DOCTYPE html>
           <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Custom App</title>
+            <title>${appName}</title>
             <script src="cordova.js"></script>
           </head>
-          <body>
+          <body style="margin:0; padding:16px; font-family:sans-serif;">
             <script>
-            ${script}
+            document.addEventListener("deviceready", function() {
+              ${script}
+            }, false);
             </script>
           </body>
           </html>`;
